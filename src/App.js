@@ -2,31 +2,81 @@ const express = require("express");
 const connectDb = require("./config/database");
 const User = require("./models/user");
 const Product = require("./models/product");
-
-
+const { validateSignUpData } = require("../src/helpers/validation");
+const bycrypt = require("bcrypt");
 
 const app = express();
 
 app.use(express.json());
 
 app.post("/signup", async (req, res) => {
-  const user = req.body;
-  console.log(user);
-
+  
   try {
-    const existingUser = await User.findOne({ email: user.email });
+    const { firstName, lastName, email, password, phoneNumber, Gender } = req.body;
+    // Validate our data
+    validateSignUpData(req);
+    // Encrypt the password
+    const passwordHash = await bycrypt.hash(password, 10);
+
+    console.log(passwordHash);
+
+    // Check wheather our signup user is existed already or not
+    const existingUser = await User.findOne({ email: email });
 
     if (existingUser) return res.status(400).send("User is existed already..");
 
-    const NewUser = await new User(user);
+    // Crreating a new instance
+    const NewUser = await new User({
+      firstName,
+      lastName,
+      email,
+      password: passwordHash,
+      phoneNumber,
+      Gender,
+    });
 
     await NewUser.save();
 
     res.send("user added successfully...");
   } catch (error) {
-    res.status(400).send("please enter valid credentials.."+ error);
+    res.status(400).send("please enter valid credentials.." + error);
   }
 });
+
+app.post("/login", async(req, res)=>{
+
+  try{
+
+    const {email, password} = req.body;
+
+    const user = await User.findOne({email : email});
+    if(!user){
+      throw new Error("user not found.");
+    }
+
+    const isPasswordValid =await bycrypt.compare(password, user.password);
+
+    if(isPasswordValid){
+      res.send("Login successfully");
+    }
+    else{
+      res.status(400).send("Password is not correct.")
+    }
+
+
+    if(!validator.isEmail(email)){
+      throw new Error("Enter a valid email");
+    }
+
+
+
+
+
+  }catch(error){
+    res.status(404).send("User not found.")
+  }
+})
+
 
 
 
@@ -35,12 +85,7 @@ app.patch("/updateUser/:userId", async (req, res) => {
   const data = req.body;
 
   try {
-    const allowed_Updates = [
-      "firstName",
-      "lastName",
-      "phoneNumber",
-      "Gender",
-    ];
+    const allowed_Updates = ["firstName", "lastName", "phoneNumber", "Gender"];
 
     const updateallowed = Object.keys(data).every((k) =>
       allowed_Updates.includes(k)
@@ -54,15 +99,10 @@ app.patch("/updateUser/:userId", async (req, res) => {
     const updateduser = await User.findByIdAndUpdate({ _id: userId }, data);
     res.send("user updated successfully..");
     // await updateduser.save();
-
   } catch (error) {
     res.status(400).send("Enter valid credentials..");
   }
 });
-
-
-
-
 
 app.get("/user", async (req, res) => {
   const userEmail = req.body.email;
@@ -114,10 +154,8 @@ app.patch("/updateProducts/:userId", async (req, res) => {
   const productId = req.params?.userId;
   const data = req.body;
 
-
   try {
-
-      const allowed_Updates = [
+    const allowed_Updates = [
       "photoUrl",
       "name",
       "description",
@@ -135,9 +173,6 @@ app.patch("/updateProducts/:userId", async (req, res) => {
       throw new Error("Update is not allowed.");
     }
 
-
-
-
     const updatedProduct = await Product.findByIdAndUpdate(
       { _id: productId },
       ProductUpdate
@@ -146,7 +181,7 @@ app.patch("/updateProducts/:userId", async (req, res) => {
     res.send("product updated successfully!!");
     await updatedProduct.save();
   } catch (error) {
-    res.send("Something went wrong"+ error.message);
+    res.send("Something went wrong" + error.message);
   }
 });
 
